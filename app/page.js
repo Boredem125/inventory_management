@@ -10,51 +10,63 @@ export default function Home() {
   const [itemName, setItemName] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredInventory, setFilteredInventory] = useState([]);
-  const [showAll, setShowAll] = useState(true); // New state to track "show all" state
+  const [showAll, setShowAll] = useState(true);
 
   const updateInventory = async () => {
-    const snapshot = query(collection(firestore, "inventory"));
-    const docs = await getDocs(snapshot);
-    const inventoryList = [];
-    docs.forEach((doc) => {
-      inventoryList.push({
-        name: doc.id,
-        ...doc.data(),
+    try {
+      const snapshot = query(collection(firestore, "inventory"));
+      const docs = await getDocs(snapshot);
+      const inventoryList = [];
+      docs.forEach((doc) => {
+        inventoryList.push({
+          name: doc.id,
+          ...doc.data(),
+        });
       });
-    });
-    setInventory(inventoryList);
-    setFilteredInventory(inventoryList); // Ensure filteredInventory is updated with full list initially
+      setInventory(inventoryList);
+      setFilteredInventory(inventoryList);
+    } catch (error) {
+      console.error("Error updating inventory: ", error);
+    }
   };
 
   const addItem = async (item) => {
-    if (!item) return; // Prevent adding empty items
-    const docRef = doc(collection(firestore, "inventory"), item);
-    const docSnap = await getDoc(docRef);
+    if (!item) return;
+    try {
+      const docRef = doc(collection(firestore, "inventory"), item);
+      const docSnap = await getDoc(docRef);
 
-    if (docSnap.exists()) {
-      const { quantity } = docSnap.data();
-      await setDoc(docRef, { quantity: quantity + 1 });
-    } else {
-      await setDoc(docRef, { quantity: 1 });
+      if (docSnap.exists()) {
+        const { quantity } = docSnap.data();
+        await setDoc(docRef, { quantity: quantity + 1 });
+      } else {
+        await setDoc(docRef, { quantity: 1 });
+      }
+
+      await updateInventory();
+    } catch (error) {
+      console.error("Error adding item: ", error);
     }
-
-    await updateInventory();
   };
 
   const removeItem = async (item) => {
-    const docRef = doc(collection(firestore, "inventory"), item);
-    const docSnap = await getDoc(docRef);
+    try {
+      const docRef = doc(collection(firestore, "inventory"), item);
+      const docSnap = await getDoc(docRef);
 
-    if (docSnap.exists()) {
-      const { quantity } = docSnap.data();
-      if (quantity === 1) {
-        await deleteDoc(docRef);
-      } else {
-        await setDoc(docRef, { quantity: quantity - 1 });
+      if (docSnap.exists()) {
+        const { quantity } = docSnap.data();
+        if (quantity === 1) {
+          await deleteDoc(docRef);
+        } else {
+          await setDoc(docRef, { quantity: quantity - 1 });
+        }
       }
-    }
 
-    await updateInventory();
+      await updateInventory();
+    } catch (error) {
+      console.error("Error removing item: ", error);
+    }
   };
 
   useEffect(() => {
@@ -62,7 +74,10 @@ export default function Home() {
   }, []);
 
   const handleOpen = () => setOpen(true);
-  const handleClose = () => setOpen(false);
+  const handleClose = () => {
+    setOpen(false);
+    setItemName(""); // Clear item name when closing the modal
+  };
 
   const handleSearch = () => {
     const results = inventory.filter((item) =>
@@ -73,15 +88,19 @@ export default function Home() {
 
   const handleShowAll = () => {
     setShowAll(true);
-    setFilteredInventory(inventory); // Show all items
+    setFilteredInventory(inventory);
   };
 
   const handleHideAll = () => {
     setShowAll(false);
-    setFilteredInventory([]); // Hide all items
+    setFilteredInventory([]);
   };
 
-  // New header position
+  const handleAddNewItem = async () => {
+    await addItem(itemName);
+    handleClose(); // Close the modal after adding the item
+  };
+
   const header = (
     <Box
       height="100px"
@@ -103,13 +122,12 @@ export default function Home() {
       height="100vh"
       display="flex"
       flexDirection="column"
-      justifyContent="space-between" // Distribute space equally
+      justifyContent="space-between"
       alignItems="center"
       gap={2}
       bgcolor="#222"
-      p={2} // Add padding to container for spacing
+      p={2}
     >
-      {/* New header position */}
       {header}
 
       <Stack spacing={2} width="100%" mb={2} alignItems="center">
@@ -119,7 +137,7 @@ export default function Home() {
             placeholder="Search items"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            sx={{ backgroundColor: '#fff', color: '#000' }} // Set background and text color for search box
+            sx={{ backgroundColor: '#fff', color: '#000' }}
             fullWidth
           />
           <Button variant="contained" onClick={handleSearch} color="primary">
@@ -139,7 +157,7 @@ export default function Home() {
 
       <Box
         width="100%"
-        flex="1" // Allow the inventory list to grow and take available space
+        flex="1"
         overflow="auto"
         bgcolor="#333"
         p={2}
@@ -147,9 +165,8 @@ export default function Home() {
       >
         <Stack
           width="100%"
-          spacing={2} // Adjust the spacing between items
+          spacing={2}
         >
-          {/* Column Headers */}
           <Box
             width="100%"
             display="flex"
@@ -159,7 +176,7 @@ export default function Home() {
             color="#fff"
             p={1}
             borderRadius={1}
-            mb={1} // Margin bottom to separate header from items
+            mb={1}
           >
             <Typography variant="h6" flex="1" textAlign="center">
               S.No
@@ -175,60 +192,55 @@ export default function Home() {
             </Typography>
           </Box>
           
-          {/* Inventory Items */}
           {filteredInventory.map((item, index) => (
             <Box
               key={item.name}
               width="100%"
-              minHeight="40px" // Reduced minHeight for smaller item boxes
+              minHeight="40px"
               display="flex"
               alignItems="center"
               justifyContent="space-between"
               bgcolor="#444"
               color="#fff"
-              p={1} // Added padding for better spacing
-              sx={{ boxSizing: 'border-box' }} // Ensure padding is included in the width
+              p={1}
+              sx={{ boxSizing: 'border-box' }}
             >
               <Typography
-                variant="body1" // Reduced text size for serial number
+                variant="body1"
                 textAlign="center"
-                flex="1" // Fixed width for serial number
+                flex="1"
               >
                 {index + 1}
               </Typography>
               <Typography
-                variant="body1" // Reduced text size for item name
+                variant="body1"
                 textAlign="left"
-                flex="4" // Allocate space for item name
-                noWrap // Prevent text wrapping
+                flex="4"
+                noWrap
               >
                 {item.name.charAt(0).toUpperCase() + item.name.slice(1)}
               </Typography>
               <Typography
-                variant="body1" // Reduced text size for quantity
+                variant="body1"
                 textAlign="center"
-                flex="2" // Allocate space for quantity
+                flex="2"
               >
                 {item.quantity}
               </Typography>
               <Stack direction="row" spacing={1} flex="3" justifyContent="center">
                 <Button
                   variant="contained"
-                  onClick={() => {
-                    addItem(item.name);
-                  }}
+                  onClick={() => addItem(item.name)}
                   color="primary"
-                  size="small" // Smaller button size
+                  size="small"
                 >
                   Add
                 </Button>
                 <Button
                   variant="contained"
-                  onClick={() => {
-                    removeItem(item.name);
-                  }}
+                  onClick={() => removeItem(item.name)}
                   color="primary"
-                  size="small" // Smaller button size
+                  size="small"
                 >
                   Remove
                 </Button>
@@ -237,6 +249,47 @@ export default function Home() {
           ))}
         </Stack>
       </Box>
+
+      {/* Add New Item Modal */}
+      <Modal
+        open={open}
+        onClose={handleClose}
+        aria-labelledby="add-new-item-modal"
+        aria-describedby="add-new-item-description"
+      >
+        <Box
+          bgcolor="#fff"
+          p={4}
+          borderRadius={2}
+          boxShadow={3}
+          position="absolute"
+          top="50%"
+          left="50%"
+          transform="translate(-50%, -50%)"
+          maxWidth="400px"
+          width="100%"
+        >
+          <Typography variant="h6" mb={2}>
+            Add New Item
+          </Typography>
+          <TextField
+            variant="outlined"
+            label="Item Name"
+            value={itemName}
+            onChange={(e) => setItemName(e.target.value)}
+            fullWidth
+            sx={{ mb: 2 }}
+          />
+          <Stack direction="row" spacing={2} justifyContent="flex-end">
+            <Button variant="contained" onClick={handleAddNewItem} color="primary">
+              Add
+            </Button>
+            <Button variant="outlined" onClick={handleClose}>
+              Cancel
+            </Button>
+          </Stack>
+        </Box>
+      </Modal>
     </Box>
   );
 }
